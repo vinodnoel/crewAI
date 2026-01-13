@@ -1,0 +1,179 @@
+"""
+CrewAI Medical Research Assistant
+Compare this with your LangGraph approach
+"""
+
+import os
+from crewai import Agent, Task, Crew, Process
+from langchain_openai import AzureChatOpenAI
+
+# ============== CONFIGURATION ==============
+os.environ["AZURE_OPENAI_ENDPOINT"] = "https://your-resource.openai.azure.com/"
+os.environ["AZURE_OPENAI_API_KEY"] = "your-key"
+os.environ["OPENAI_API_VERSION"] = "2024-02-01"
+
+llm = AzureChatOpenAI(
+    deployment_name="gpt-4",
+    temperature=0.7,
+    model_name="gpt-4"
+)
+
+# ============== DEFINE AGENTS ==============
+
+# Agent 1: Medical Researcher
+researcher = Agent(
+    role="Medical Researcher",
+    goal="Research clinical information on medical conditions and treatments",
+    backstory="""You are an experienced medical researcher with 15 years of 
+    experience in evidence-based medicine. You excel at finding and synthesizing 
+    clinical evidence from authoritative sources.""",
+    verbose=True,
+    allow_delegation=False,  # Won't delegate to other agents
+    llm=llm
+)
+
+# Agent 2: Clinical Analyst
+analyst = Agent(
+    role="Clinical Analyst",
+    goal="Analyze medical research and identify key clinical insights",
+    backstory="""You are a clinical analyst who specializes in interpreting 
+    medical research. You can identify important clinical implications, 
+    contraindications, and treatment protocols.""",
+    verbose=True,
+    allow_delegation=False,
+    llm=llm
+)
+
+# Agent 3: Medical Writer
+writer = Agent(
+    role="Medical Writer",
+    goal="Create clear, accurate clinical summaries for healthcare professionals",
+    backstory="""You are a medical writer who creates concise, accurate clinical 
+    documentation. You organize information logically and highlight critical 
+    clinical details.""",
+    verbose=True,
+    allow_delegation=False,
+    llm=llm
+)
+
+# ============== DEFINE TASKS ==============
+
+def create_research_task(condition: str) -> Task:
+    """Create research task for given condition"""
+    return Task(
+        description=f"""Research the medical condition: {condition}
+        
+        Find and compile information on:
+        1. Definition and pathophysiology
+        2. Common symptoms and presentations
+        3. Current treatment protocols
+        4. Evidence-based guidelines
+        
+        Focus on recent clinical evidence (last 5 years preferred).
+        Cite authoritative sources where possible.""",
+        agent=researcher,
+        expected_output="""Comprehensive research summary including:
+        - Condition overview
+        - Clinical presentations
+        - Treatment options
+        - Key evidence sources"""
+    )
+
+def create_analysis_task(condition: str) -> Task:
+    """Create analysis task"""
+    return Task(
+        description=f"""Analyze the research findings for {condition}.
+        
+        Your analysis should include:
+        1. First-line treatment recommendations
+        2. Important contraindications or warnings
+        3. Clinical decision points
+        4. Patient considerations
+        
+        Prioritize information by clinical relevance.""",
+        agent=analyst,
+        expected_output="""Clinical analysis including:
+        - Treatment priorities
+        - Clinical warnings
+        - Decision framework
+        - Patient factors"""
+    )
+
+def create_writing_task(condition: str) -> Task:
+    """Create writing task"""
+    return Task(
+        description=f"""Create a clinical summary document for {condition}.
+        
+        The summary should be:
+        - Clear and concise (500-800 words)
+        - Organized with clear sections
+        - Focused on actionable clinical information
+        - Written for healthcare professionals
+        
+        Include sections:
+        1. Overview
+        2. Clinical Presentation
+        3. Treatment Approach
+        4. Key Considerations""",
+        agent=writer,
+        expected_output="""Professional clinical summary ready for use by 
+        healthcare providers, with clear sections and actionable information."""
+    )
+
+# ============== CREATE AND RUN CREW ==============
+
+def run_medical_research(condition: str) -> str:
+    """
+    Run the medical research crew
+    """
+    print(f"\n{'='*60}")
+    print(f"Starting research on: {condition}")
+    print(f"{'='*60}\n")
+    
+    # Create tasks
+    research_task = create_research_task(condition)
+    analysis_task = create_analysis_task(condition)
+    writing_task = create_writing_task(condition)
+    
+    # Create crew
+    crew = Crew(
+        agents=[researcher, analyst, writer],
+        tasks=[research_task, analysis_task, writing_task],
+        process=Process.sequential,  # Tasks execute in order
+        verbose=True
+    )
+    
+    # Execute
+    result = crew.kickoff()
+    
+    return result
+
+# ============== MAIN ==============
+
+if __name__ == "__main__":
+    # Test with a medical condition
+    condition = "Type 2 Diabetes"
+    
+    result = run_medical_research(condition)
+    
+    print("\n" + "="*60)
+    print("FINAL OUTPUT:")
+    print("="*60)
+    print(result)
+```
+
+---
+
+### **What This Demo Shows:**
+
+**Sequential Process:**
+```
+User provides condition
+    ↓
+Researcher Agent → Gathers information
+    ↓
+Analyst Agent → Analyzes findings (receives researcher's output)
+    ↓
+Writer Agent → Creates summary (receives analyst's output)
+    ↓
+Final clinical summary
